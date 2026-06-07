@@ -8,17 +8,19 @@ import com.example.payment_management.dto.RazorpayOrderResponse;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.Utils;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class RazorpayClientServiceImpl
         implements RazorpayClientService {
 
     private final RazorpayClient razorpayClient;
-
+    private final String keySecret;
     public RazorpayClientServiceImpl(
-            RazorpayClient razorpayClient) {
+            RazorpayClient razorpayClient,@Value("${razorpay.key.secret}") String keySecret) {
 
         this.razorpayClient = razorpayClient;
+         this.keySecret = keySecret;
     }
 
     @Override
@@ -85,7 +87,7 @@ public class RazorpayClientServiceImpl
 
             return Utils.verifyPaymentSignature(
                     attributes,
-                    razorpayClient.getKeySecret());
+                    keySecret);
 
         } catch (Exception e) {
 

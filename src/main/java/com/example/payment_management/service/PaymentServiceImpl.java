@@ -1,5 +1,8 @@
 package com.example.payment_management.service;
+
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 
@@ -8,67 +11,205 @@ import com.example.payment_management.dto.RazorpayOrderResponse;
 import com.example.payment_management.entity.Payment;
 import com.example.payment_management.entity.PaymentStatus;
 import com.example.payment_management.exception.PaymentNotFoundException;
+import com.example.payment_management.dto.PaymentEvent;
+import com.example.payment_management.producer.PaymentEventProducer;
 import com.example.payment_management.repository.PaymentRepository;
-import com.example.payment_management.service.PaymentService;
-import com.example.payment_management.service.RazorpayClientService;
+
 @Service
-public class PaymentServiceImpl implements PaymentService {
+public class PaymentServiceImpl
+        implements PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final RazorpayClientService razorpayClientService;
+
+    private final RazorpayClientService
+            razorpayClientService;
+
+    private final PaymentEventProducer
+            paymentEventProducer;
 
     public PaymentServiceImpl(
             PaymentRepository paymentRepository,
-            RazorpayClientService razorpayClientService) {
+            RazorpayClientService razorpayClientService,
+            PaymentEventProducer paymentEventProducer) {
 
         this.paymentRepository = paymentRepository;
         this.razorpayClientService = razorpayClientService;
+        this.paymentEventProducer = paymentEventProducer;
     }
-     @Override
-    public Payment createPayment(CreatePaymentRequest request) {
 
-        if (request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+    @Override
+    public Payment createPayment(
+            CreatePaymentRequest request) {
+
+        if (request.amount()
+                .compareTo(BigDecimal.ZERO) <= 0) {
+
             throw new IllegalArgumentException(
                     "Amount must be greater than zero");
         }
 
         RazorpayOrderResponse razorpayOrder =
-                razorpayClientService.createOrder(request);
+                razorpayClientService
+                        .createOrder(request);
 
         Payment payment = new Payment();
 
         payment.setUserId(request.userId());
         payment.setAmount(request.amount());
-        payment.setStatus(PaymentStatus.PENDING);
+        payment.setCurrency(request.currency());
+
+        payment.setStatus(
+                PaymentStatus.PENDING);
+
         payment.setRazorpayOrderId(
                 razorpayOrder.orderId());
 
-        return paymentRepository.save(payment);
+        payment.setCreatedAt(
+                LocalDateTime.now());
+
+        payment.setUpdatedAt(
+                LocalDateTime.now());
+
+        Payment saved =
+                paymentRepository.save(payment);
+
+        paymentEventProducer.publish(
+                new PaymentEvent(
+                        saved.getId(),
+                        saved.getUserId(),
+                        "PAYMENT_CREATED",
+                        saved.getStatus().name(),
+                        saved.getAmount()
+                ));
+
+        return saved;
     }
+
     @Override
-    public void verifyPayment(
+    public Payment verifyPayment(
             String razorpayOrderId,
             String razorpayPaymentId,
             String signature) {
 
         Payment payment =
                 paymentRepository
-                        .findByRazorpayOrderId(razorpayOrderId)
+                        .findByRazorpayOrderId(
+                                razorpayOrderId)
                         .orElseThrow(
-                                () -> new PaymentNotFoundException(
-                                        "Payment not found"));
+                                () ->
+                                        new PaymentNotFoundException(
+                                                "Payment not found"));
 
         boolean valid =
-                razorpayClientService.verifySignature(
-                        razorpayOrderId,
-                        razorpayPaymentId,
-                        signature);
+                razorpayClientService
+                        .verifySignature(
+                                razorpayOrderId,
+                                razorpayPaymentId,
+                                signature);
+
+        payment.setRazorpayPaymentId(
+                razorpayPaymentId);
+
+        payment.setUpdatedAt(
+                LocalDateTime.now());
 
         if (valid) {
-            payment.setStatus(PaymentStatus.SUCCESS);
+
+            payment.setStatus(
+                    PaymentStatus.SUCCESS);
+
         } else {
-            payment.setStatus(PaymentStatus.FAILED);
+
+            payment.setStatus(
+                    PaymentStatus.FAILED);
         }
 
-        paymentRepository.save(payment);}
+        Payment updated =
+                paymentRepository.save(payment);
+
+        paymentEventProducer.publish(
+                new PaymentEvent(
+                        updated.getId(),
+                        updated.getUserId(),
+                        valid
+                                ? "PAYMENT_SUCCESS"
+                                : "PAYMENT_FAILED",
+                        updated.getStatus().name(),
+                        updated.getAmount()
+                ));
+
+        return updated;
+    }
+
+        @Override
+        public Payment updatePaymentStatus(Long paymentId, String status, String razorpayPaymentId) {
+
+                Payment payment = getPayment(paymentId);
+
+                PaymentStatus statusEnum;
+
+                try {
+                        statusEnum = PaymentStatus.valueOf(status.toUpperCase());
+                } catch (Exception e) {
+                        throw new IllegalArgumentException("Invalid payment status: " + status);
+                }
+
+                if (razorpayPaymentId != null && !razorpayPaymentId.isBlank()) {
+                        payment.setRazorpayPaymentId(razorpayPaymentId);
+                }
+
+                payment.setStatus(statusEnum);
+
+                payment.setUpdatedAt(LocalDateTime.now());
+
+                Payment updated = paymentRepository.save(payment);
+
+                paymentEventProducer.publish(
+                                new PaymentEvent(
+                                                updated.getId(),
+                                                updated.getUserId(),
+                                                "PAYMENT_" + statusEnum.name(),
+                                                updated.getStatus().name(),
+                                                updated.getAmount()
+                                ));
+
+                return updated;
+        }
+
+    @Override
+    public Payment getPayment(
+            Long paymentId) {
+
+        return paymentRepository
+                .findById(paymentId)
+                .orElseThrow(
+                        () ->
+                                new PaymentNotFoundException(
+                                        "Payment not found"));
+    }
+
+    @Override
+    public List<Payment> getAllPayments() {
+
+        return paymentRepository.findAll();
+    }
+
+    @Override
+    public void deletePayment(
+            Long paymentId) {
+
+        Payment payment =
+                getPayment(paymentId);
+
+        paymentRepository.delete(payment);
+
+        paymentEventProducer.publish(
+                new PaymentEvent(
+                        payment.getId(),
+                        payment.getUserId(),
+                        "PAYMENT_DELETED",
+                        payment.getStatus().name(),
+                        payment.getAmount()
+                ));
+    }
 }

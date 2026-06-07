@@ -1,8 +1,11 @@
 package com.example.payment_management.entity;
 
 public enum PaymentStatus {
-     PENDING,
+     CREATED,
+    PENDING,
     SUCCESS,
     FAILED,
+    CANCELLED,
+    EXPIRED,
     REFUNDED
 }

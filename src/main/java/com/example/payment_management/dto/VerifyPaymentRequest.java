@@ -1,0 +1,17 @@
+package com.example.payment_management.dto;
+
+import jakarta.validation.constraints.NotBlank;
+
+public record VerifyPaymentRequest(
+
+        @NotBlank
+        String orderId,
+
+        @NotBlank
+        String paymentId,
+
+        @NotBlank
+        String signature
+
+) {
+}
