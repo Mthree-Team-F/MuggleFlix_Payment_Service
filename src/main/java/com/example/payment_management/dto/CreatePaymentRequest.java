@@ -6,7 +6,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 public record CreatePaymentRequest(
-         @NotNull
+        @NotNull
+        Long subscriptionId,
+
+        @NotNull
         Long userId,
 
         @NotNull
@@ -14,6 +17,6 @@ public record CreatePaymentRequest(
         BigDecimal amount,
 
         @NotBlank
-        String currency
+        String planName
 ) {
 }

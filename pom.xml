@@ -50,6 +50,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Jackson Databind for Kafka JSON serialization/deserialization -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <!-- Security (optional for now)
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -12,10 +12,14 @@ import com.example.payment_management.entity.Payment;
 import com.example.payment_management.entity.PaymentStatus;
 import com.example.payment_management.exception.PaymentNotFoundException;
 import com.example.payment_management.dto.PaymentEvent;
+import com.example.payment_management.dto.PaymentResultEvent;
 import com.example.payment_management.producer.PaymentEventProducer;
+import com.example.payment_management.producer.PaymentResultProducer;
 import com.example.payment_management.repository.PaymentRepository;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class PaymentServiceImpl
         implements PaymentService {
 
@@ -27,14 +31,19 @@ public class PaymentServiceImpl
     private final PaymentEventProducer
             paymentEventProducer;
 
+    private final PaymentResultProducer
+            paymentResultProducer;
+
     public PaymentServiceImpl(
             PaymentRepository paymentRepository,
             RazorpayClientService razorpayClientService,
-            PaymentEventProducer paymentEventProducer) {
+            PaymentEventProducer paymentEventProducer,
+            PaymentResultProducer paymentResultProducer) {
 
         this.paymentRepository = paymentRepository;
         this.razorpayClientService = razorpayClientService;
         this.paymentEventProducer = paymentEventProducer;
+        this.paymentResultProducer = paymentResultProducer;
     }
 
     @Override
@@ -54,9 +63,11 @@ public class PaymentServiceImpl
 
         Payment payment = new Payment();
 
+        payment.setSubscriptionId(request.subscriptionId());
         payment.setUserId(request.userId());
         payment.setAmount(request.amount());
-        payment.setCurrency(request.currency());
+        payment.setPlanName(request.planName());
+        payment.setCurrency("INR");
 
         payment.setStatus(
                 PaymentStatus.PENDING);
@@ -127,6 +138,7 @@ public class PaymentServiceImpl
         Payment updated =
                 paymentRepository.save(payment);
 
+        // Publish to payment-events topic (for internal payment service listeners)
         paymentEventProducer.publish(
                 new PaymentEvent(
                         updated.getId(),
@@ -137,6 +149,18 @@ public class PaymentServiceImpl
                         updated.getStatus().name(),
                         updated.getAmount()
                 ));
+
+        // Publish to payment-result topic (for subscription service)
+        PaymentResultEvent resultEvent = new PaymentResultEvent(
+                updated.getId(),
+                updated.getUserId(),
+                valid ? "PAYMENT_SUCCESS" : "PAYMENT_FAILED",
+                updated.getStatus().name(),
+                updated.getAmount()
+        );
+        
+        log.info("Publishing payment result to subscription service: {}", resultEvent);
+        paymentResultProducer.publish(resultEvent);
 
         return updated;
     }

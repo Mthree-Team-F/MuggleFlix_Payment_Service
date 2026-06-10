@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import java.util.List;
 import com.example.payment_management.producer.PaymentEventProducer;
+import com.example.payment_management.producer.PaymentResultProducer;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -15,7 +16,7 @@ import com.example.payment_management.entity.Payment;
 import com.example.payment_management.entity.PaymentStatus;
 import com.example.payment_management.repository.PaymentRepository;
 import com.example.payment_management.service.PaymentServiceImpl;
-import com.example.payment_management.service.RazorpayClientServiceImpl;
+import com.example.payment_management.service.RazorpayClientService;
 import com.example.payment_management.dto.CreatePaymentRequest;
 import com.example.payment_management.dto.RazorpayOrderResponse;
 import java.math.BigDecimal;
@@ -27,23 +28,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(MockitoExtension.class)
 public class PaymentServiceTest {
     @Mock
-private PaymentRepository paymentRepository;
-@Mock
-private PaymentEventProducer paymentEventProducer;
+    private PaymentRepository paymentRepository;
+    @Mock
+    private PaymentEventProducer paymentEventProducer;
+    @Mock
+    private PaymentResultProducer paymentResultProducer;
+    @Mock
+    private RazorpayClientService razorpayClientService;
 
-@Mock
-private RazorpayClientServiceImpl razorpayClientService;
-
-@InjectMocks
-private PaymentServiceImpl paymentService;
+    @InjectMocks
+    private PaymentServiceImpl paymentService;
 
 @Test
 void shouldCreatePaymentSuccessfully() {
 
     CreatePaymentRequest request =
             new CreatePaymentRequest(
+                    1L,
                     101L,
-                    BigDecimal.valueOf(5000),"INR"
+                    BigDecimal.valueOf(5000),
+                    "MONTHLY"
             );
 
     RazorpayOrderResponse razorpayResponse =
@@ -81,8 +85,10 @@ void shouldThrowExceptionWhenAmountIsZero() {
 
     CreatePaymentRequest request =
             new CreatePaymentRequest(
+                    1L,
                     101L,
-                    BigDecimal.ZERO,"INR"
+                    BigDecimal.ZERO,
+                    "MONTHLY"
             );
 
     assertThrows(
@@ -96,8 +102,10 @@ void shouldThrowExceptionWhenRazorpayOrderCreationFails() {
 
     CreatePaymentRequest request =
             new CreatePaymentRequest(
+                    1L,
                     101L,
-                    BigDecimal.valueOf(1000),"INR"
+                    BigDecimal.valueOf(1000),
+                    "MONTHLY"
             );
 
     when(razorpayClientService.createOrder(any()))
@@ -119,8 +127,10 @@ void shouldSavePaymentInDatabase() {
 
     CreatePaymentRequest request =
             new CreatePaymentRequest(
+                    1L,
                     101L,
-                    BigDecimal.valueOf(2000),"INR"
+                    BigDecimal.valueOf(2000),
+                    "MONTHLY"
             );
 
     when(razorpayClientService.createOrder(any()))

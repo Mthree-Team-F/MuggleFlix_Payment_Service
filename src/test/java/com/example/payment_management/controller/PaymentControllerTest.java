@@ -52,9 +52,10 @@ class PaymentControllerTest {
 
         String request = """
                 {
+                    "subscriptionId":1,
                     "userId":101,
                     "amount":5000,
-                    "currency": "INR"
+                    "planName":"MONTHLY"
                 }
                 """;
 
@@ -81,9 +82,10 @@ class PaymentControllerTest {
 
         String request = """
                 {
+                    "subscriptionId":1,
                     "userId":101,
                     "amount":5000,
-                    "currency": "INR"
+                    "planName":"MONTHLY"
                 }
                 """;
 
@@ -102,6 +104,7 @@ class PaymentControllerTest {
 
         String request = """
                 {
+                    "subscriptionId":1,
                     "userId":101
                 }
                 """;
@@ -119,8 +122,10 @@ class PaymentControllerTest {
 
         String request = """
                 {
+                    "subscriptionId":1,
                     "userId":"abc",
-                    "amount":"xyz"
+                    "amount":"xyz",
+                    "planName":"MONTHLY"
                 }
                 """;
 
